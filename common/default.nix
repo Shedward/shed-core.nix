@@ -20,6 +20,7 @@
       git
       vim
       htop
+      dig
     ];
 
     variables = {

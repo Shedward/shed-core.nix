@@ -8,6 +8,7 @@
     ./machines/shed-core
 
     ./features/torrents
+    ./features/dns
   ];
 
   system = {
