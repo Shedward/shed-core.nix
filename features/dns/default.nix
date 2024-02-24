@@ -40,6 +40,7 @@ in {
           local-data = [
             "\"nuc.shed A 192.168.88.23\""
             "\"router1.shed A 192.168.88.1\""
+            "\"router2.shed A 192.168.88.254\""
           ];
           include = [
             "${adblockLocalZones}"
