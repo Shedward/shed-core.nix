@@ -8,6 +8,10 @@
     ];
   };
 
+  networking.firewall.allowedTCPPorts = [
+    9091
+  ];
+
   services = {
     samba-wsdd = {
       enable = true;
@@ -41,9 +45,13 @@
 
     transmission = {
       enable = true;
+      openFirewall = true;
       user = "shed";
       settings = {
         download-dir = "/home/shed/Downloads";
+        rpc-bind-address = "0.0.0.0";
+        rpc-whitelist = "127.0.0.1,192.168.88.*";
+        rpc-host-whitelist = "nuc.shed";
       };
     };
   };
