@@ -2,8 +2,14 @@
 { config, lib, pkgs, ... }:
 
 {
-  nix.settings = {
-    experimental-features = ["nix-command" "flakes"];
+  nix = {
+    gc = {
+      automatic = true;
+      dates = "04:00";
+    };
+    settings = {
+      experimental-features = ["nix-command" "flakes"];
+    };
   };
 
   networking.firewall = {
