@@ -1,4 +1,4 @@
-{ stdenv, pkgs, version }:
+{ pkgs, version, hash }:
 
 with pkgs; stdenv.mkDerivation rec {
   pname = "home-tools";
@@ -25,15 +25,17 @@ with pkgs; stdenv.mkDerivation rec {
 
   src = fetchurl {
     url = "https://github.com/Shedward/home-tools/releases/download/v${version}/HomeTools.tar.gz";
-    hash = "sha256-RVRHwWeaEMjYkMoSOLhL1ux5x/t7CkicjjnZKqoSUeM=";
+    inherit hash;
   };
 
   sourceRoot = ".";
   installPhase = ''
     runHook preInstall
-    ls -la
-    install -m755 -D HomeTools/HomeTools $out/bin/HomeTools
-    cp -r HomeTools/lib $out/lib
+    install -m755 -D HomeTools $out/bin/HomeTools
+    mkdir "$out/www"
+    cp -r Resources "$out/www/"
+    cp -r Public "$out/www/"
+    cp -r lib "$out/lib"
     runHook postInstall
   '';
 }
