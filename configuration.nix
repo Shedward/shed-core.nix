@@ -9,6 +9,7 @@
 
     ./features/torrents
     ./features/dns
+    ./features/home-tools
   ];
 
   system = {
