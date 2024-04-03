@@ -4,8 +4,8 @@ let
   port = "8080";
   home-tool-package = import ./home-tools-package.nix { 
     inherit pkgs;
-    version = "0.0.3";
-    hash = "sha256-6/hTzUMz+ukxr7AUeRYMvoOxFigULXaBQ9XwioHs8ww=";
+    version = "0.0.3.1";
+    hash = "sha256-reK1WGTcuRSjuQ1ZQQbFh0E4QjHnDKBG+dVLuEj3rPM=";
   };
   www = "${home-tool-package.outPath}/www";
 in
