@@ -26,7 +26,7 @@
       extraConfig = ''
         workgroup = WORKGROUP
         security = user
-        hosts allow = 192.168.88.
+        hosts allow = 192.168.44.
         guest account = nobody
         map to guest = bad user
       '';
@@ -50,7 +50,7 @@
       settings = {
         download-dir = "/home/shed/Downloads";
         rpc-bind-address = "0.0.0.0";
-        rpc-whitelist = "127.0.0.1,192.168.88.*";
+        rpc-whitelist = "127.0.0.1,192.168.44.*";
       };
     };
 
