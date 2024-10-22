@@ -38,9 +38,9 @@ in {
             "192.168.0.0/16"
           ];
           local-data = [
-            "\"home.home A 192.168.88.23\""
-            "\"router1.home A 192.168.88.1\""
-            "\"router2.home A 192.168.88.254\""
+            "\"home.home A 192.168.44.23\""
+            "\"router1.home A 192.168.44.1\""
+            "\"router2.home A 192.168.44.2\""
           ];
           include = [
             "${adblockLocalZones}"
