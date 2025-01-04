@@ -2,6 +2,8 @@
 { config, lib, pkgs, ... }:
 
 {
+  nixpkgs.config.allowUnfree = true;
+
   imports = [
     ./hardware-configuration.nix
     ./common
@@ -10,6 +12,7 @@
     ./features/torrents
     ./features/dns
     ./features/home-tools
+    ./features/plex
   ];
 
   system = {

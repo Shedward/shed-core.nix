@@ -37,10 +37,14 @@ in {
           private-address = [
             "192.168.0.0/16"
           ];
+          local-zone = [
+            "\"home.\" static"
+          ];
           local-data = [
-            "\"home.home A 192.168.44.21\""
-            "\"router1.home A 192.168.44.1\""
-            "\"router2.home A 192.168.44.2\""
+            "\"home.home. A 192.168.44.21\""
+            "\"router1.home. A 192.168.44.1\""
+            "\"router2.home. A 192.168.44.2\""
+            "\"plex.home. A 192.168.44.21\""
           ];
           include = [
             "${adblockLocalZones}"
