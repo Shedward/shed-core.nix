@@ -2,9 +2,13 @@
 { config, lib, pkgs, ... }:
 
 {
+  nixpkgs.overlays = [
+    (import ./transmission-patches.overlay.nix)
+  ];
+
   environment = {
     systemPackages = with pkgs; [
-      transmission
+      transmission_4
     ];
   };
 
