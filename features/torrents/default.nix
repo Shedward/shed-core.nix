@@ -20,18 +20,16 @@
 
     samba = {
       enable = true;
-      securityType = "user";
       openFirewall = true;
 
-      extraConfig = ''
-        workgroup = WORKGROUP
-        security = user
-        hosts allow = 192.168.44.
-        guest account = nobody
-        map to guest = bad user
-      '';
+      settings = {
+        global = {
+          workgroup = "WORKGROUP";
+          "hosts allow" = "192.168.44.";
+          "guest account" = "nobody";
+          "map to guest" = "bad user";
+        };
 
-      shares = {
         downloads = {
           path = "/home/shed/Downloads";
           browseable = "yes";
@@ -58,11 +56,11 @@
       enable = true;
       virtualHosts."home.home" = {
         locations = {
-          "/torrents/" = { 
+          "/torrents/" = {
             proxyPass = "http://localhost:9091";
           };
 
-          "/transmission/" = { 
+          "/transmission/" = {
             proxyPass = "http://localhost:9091";
           };
         };
