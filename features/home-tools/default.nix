@@ -2,10 +2,10 @@
 
 let
   port = "8080";
-  home-tool-package = import ./home-tools-package.nix { 
+  home-tool-package = import ./home-tools-package.nix {
     inherit pkgs;
-    version = "0.0.3.1";
-    hash = "sha256-reK1WGTcuRSjuQ1ZQQbFh0E4QjHnDKBG+dVLuEj3rPM=";
+    version = "0.0.6.4";
+    hash = "sha256-gkN8ZhF46Vzf1BYzTF+BgUoW8oDR+Ipke788qppRxaM=";
   };
   www = "${home-tool-package.outPath}/www";
 in
@@ -45,6 +45,7 @@ in
       Restart = "always";
       RestartSec = 3;
       SyslogIdentifier = "home-tools";
+      Environment = "HOME_TOOLS_CONFIG_PATH=/var/lib/home-tools/config.json";
     };
     wantedBy = [ "multi-user.target" ];
   };
@@ -58,9 +59,9 @@ in
         "/(fonts|styles)/" = {
           root = "${www}/Public";
         };
-  
+
         # Main page
-        "/" = { 
+        "/" = {
           proxyPass = "http://localhost:${port}";
           extraConfig = ''
             proxy_set_header Host $host;

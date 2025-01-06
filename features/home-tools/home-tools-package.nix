@@ -17,6 +17,9 @@ with pkgs; stdenv.mkDerivation rec {
   buildInputs = [
     zlib
     stdenv.cc.cc.lib
+    libtinfo
+    libxml2
+    curl
   ];
 
   nativeBuildInputs = [
