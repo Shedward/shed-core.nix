@@ -4,8 +4,8 @@ let
   port = "8080";
   home-tool-package = import ./home-tools-package.nix {
     inherit pkgs;
-    version = "0.0.6.4";
-    hash = "sha256-gkN8ZhF46Vzf1BYzTF+BgUoW8oDR+Ipke788qppRxaM=";
+    version = "0.1.0.0";
+    hash = "sha256-z/Sm21QmCnszniCkt2DefyAKRle/h3D5qHaZWfr0ZfE=";
   };
   www = "${home-tool-package.outPath}/www";
 in
@@ -48,6 +48,13 @@ in
       Environment = "HOME_TOOLS_CONFIG_PATH=/var/lib/home-tools/config.json";
     };
     wantedBy = [ "multi-user.target" ];
+  };
+
+  services.cron = {
+    enable = true;
+    systemCronJobs = [
+      "0 * * * * curl -X POST http://home.home/api/online/probe > /dev/null 2>&1"
+    ];
   };
 
   services.nginx = {
