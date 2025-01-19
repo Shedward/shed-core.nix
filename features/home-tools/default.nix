@@ -4,8 +4,8 @@ let
   port = "8080";
   home-tool-package = import ./home-tools-package.nix {
     inherit pkgs;
-    version = "0.1.0.0";
-    hash = "sha256-z/Sm21QmCnszniCkt2DefyAKRle/h3D5qHaZWfr0ZfE=";
+    version = "1.1.0.0";
+    hash = "sha256-bt1m1WXTT6U+e/dWulcgsAjZiqrBev/891QZm3iQGuk=";
   };
   www = "${home-tool-package.outPath}/www";
 in
@@ -53,7 +53,7 @@ in
   services.cron = {
     enable = true;
     systemCronJobs = [
-      "0 * * * * curl -X POST http://home.home/api/online/probe > /dev/null 2>&1"
+      "0 * * * * home-tools curl -X POST http://home.home/api/online/probe > /dev/null 2>&1"
     ];
   };
 
