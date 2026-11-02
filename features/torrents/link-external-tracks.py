@@ -1,7 +1,7 @@
-"""Link external audio and subtitles beside matching videos without changing torrent files."""
+"""Link external audio and subtitles beside the videos in a season folder."""
 
 import argparse
-from collections import Counter
+from collections import defaultdict
 import os
 from pathlib import Path
 import sys
@@ -12,13 +12,68 @@ AUDIO = {
     ".dtshd", ".eac3", ".flac", ".m4a", ".mka", ".mlp", ".mp3",
     ".oga", ".ogg", ".thd", ".wav", ".wma",
 }
-
 SUBTITLES = {".srt", ".ass", ".ssa", ".vtt", ".idx", ".sub"}
+VOBSUB = {".idx", ".sub"}
+
+
+def destination(root, track, episodes):
+    matches = [stem for stem in episodes
+               if track.stem == stem or track.stem.startswith(stem + ".")]
+    if not matches:
+        print(f"SKIP no matching episode in season root: {track}")
+        return None
+    episode = max(matches, key=len)
+    version = track.stem[len(episode) + 1:]
+    if not version:
+        if track.parent.parent == root:
+            version = "external"
+        else:
+            version = track.parent.name.strip("[]") or track.parent.name
+    return root / f"{episode}.{version}{track.suffix.lower()}"
+
+
+def link_job(job, dry_run):
+    """Preflight the entire track (one file or an idx/sub pair) before writing."""
+    created = []
+    try:
+        missing = []
+        for source, target in job:
+            if source.is_symlink() or not source.is_file():
+                raise OSError(f"source is not a regular file: {source}")
+            if os.path.lexists(target):
+                if target.is_symlink() or not os.path.samefile(source, target):
+                    raise FileExistsError(f"destination contains a different file: {target}")
+                print(f"SKIP already linked: {target}")
+            else:
+                missing.append((source, target))
+        for source, target in missing:
+            if dry_run:
+                print(f"WOULD LINK {source} -> {target}")
+                continue
+            try:
+                os.link(source, target, follow_symlinks=False)
+                created.append((source, target))
+            except FileExistsError:
+                # Another hook may have created the same link after preflight.
+                if target.is_symlink() or not os.path.samefile(source, target):
+                    raise
+        for source, target in created:
+            print(f"LINK {source} -> {target}")
+        return True
+    except OSError as error:
+        print(f"ERROR {job[0][0]}: {error}", file=sys.stderr)
+        # Do not leave half of a newly created VobSub pair after a link failure.
+        # Links which existed before this job are never removed.
+        for source, target in reversed(created):
+            try:
+                if not target.is_symlink() and os.path.samefile(source, target):
+                    target.unlink()
+            except OSError as cleanup_error:
+                print(f"ERROR rolling back {target}: {cleanup_error}", file=sys.stderr)
+        return False
 
 
 def process(root, dry_run=False):
-    # Do not traverse symlinks, including links outside this torrent.
-    files = []
     failed = False
 
     def scan_error(error):
@@ -26,78 +81,51 @@ def process(root, dry_run=False):
         print(f"ERROR scanning {error.filename}: {error}", file=sys.stderr)
         failed = True
 
+    files = []
     for directory, dirs, names in os.walk(root, followlinks=False, onerror=scan_error):
         dirs[:] = sorted(d for d in dirs if not (Path(directory) / d).is_symlink())
-        files.extend(Path(directory) / n for n in sorted(names)
-                     if not (Path(directory) / n).is_symlink()
-                     and (Path(directory) / n).is_file())
-    videos = [p for p in files if p.suffix.lower() in VIDEO]
-    pending = []
-    for track in (p for p in files if p.suffix.lower() in AUDIO | SUBTITLES):
-        # Literal string comparison: brackets in release names aren't glob syntax.
-        matches = [v for v in videos if track.stem == v.stem
-                   or track.stem.startswith(v.stem + ".")]
-        if not matches:
-            print(f"SKIP no matching video: {track}")
+        files.extend(Path(directory) / name for name in sorted(names)
+                     if not (Path(directory) / name).is_symlink()
+                     and (Path(directory) / name).is_file())
+    # Multiple video formats with the same stem represent the same episode.
+    episodes = {p.stem for p in files if p.parent == root and p.suffix.lower() in VIDEO}
+    tracks = [p for p in files if p.parent != root and p.suffix.lower() in AUDIO | SUBTITLES]
+    pairs = defaultdict(list)
+    jobs = []
+    for track in tracks:
+        target = destination(root, track, episodes)
+        if target is None:
             continue
-        longest = max(len(v.stem) for v in matches)
-        matches = [v for v in matches if len(v.stem) == longest]
-        if len(matches) != 1:
-            print(f"SKIP ambiguous video: {track}")
-            continue
-        target = matches[0].parent / track.name
-        if target == track:
-            continue
-        pending.append((track, target))
-
-    # Plan before linking so dry runs and real runs choose the same names.
-    counts = Counter(target for _, target in pending)
-    rename = {track for track, target in pending if counts[target] > 1}
-    # VobSub's index and data files must keep the same basename.
-    pairs = {(p.parent, p.stem) for p in rename if p.suffix.lower() in {".idx", ".sub"}}
-    rename.update(p for p, _ in pending
-                  if p.suffix.lower() in {".idx", ".sub"} and (p.parent, p.stem) in pairs)
-
-    def destination(track, target, full_group=False):
-        if track not in rename:
-            return target
-        parts = track.relative_to(root).parent.parts if full_group else (track.parent.name,)
-        group = ".".join(part.strip("[]") or part for part in parts)
-        return target.with_name(f"{track.stem}.{group}{track.suffix}")
-
-    named = [(track, destination(track, target)) for track, target in pending]
-    counts = Counter(target for _, target in named)
-    # Two nested folders can have the same group name; qualify with their path.
-    qualify = {track for track, target in named if counts[target] > 1}
-    qualify_pairs = {(p.parent, p.stem) for p in qualify if p.suffix.lower() in {".idx", ".sub"}}
-    qualify.update(p for p, _ in pending
-                   if p.suffix.lower() in {".idx", ".sub"} and (p.parent, p.stem) in qualify_pairs)
-    named = [(track, destination(track, target, track in qualify)) for track, target in pending]
-    counts = Counter(target for _, target in named)
-    originals = dict(pending)
-    for track, target in named:
-        original = originals[track]
-        if (os.path.lexists(original) and not original.is_symlink()
-                and os.path.samefile(track, original)
-                and not (track in rename and track.suffix.lower() in {".idx", ".sub"})):
-            continue
-        if counts[target] > 1:
-            print(f"SKIP ambiguous destination: {target}")
+        if track.suffix.lower() in VOBSUB:
+            pairs[track.parent, track.stem].append((track, target))
+        else:
+            jobs.append([(track, target)])
+    for pair in pairs.values():
+        if len(pair) != 2 or {p.suffix.lower() for p, _ in pair} != VOBSUB:
+            print(f"ERROR incomplete or ambiguous idx/sub pair: {pair[0][0]}", file=sys.stderr)
             failed = True
-            continue
-        if os.path.lexists(target):
-            if not target.is_symlink() and os.path.samefile(track, target):
-                continue
-            print(f"SKIP existing destination: {target}")
-            continue
-        if dry_run:
-            print(f"WOULD LINK {track} -> {target}")
-            continue
+        else:
+            jobs.append(pair)
+
+    # Detect competing sources before creating any destinations, including on
+    # dry runs. A shared file (hard links in multiple source folders) is OK.
+    claims = defaultdict(list)
+    for job in jobs:
+        for source, target in job:
+            claims[target].append(source)
+    conflicts = set()
+    for target, sources in claims.items():
         try:
-            os.link(track, target)
-            print(f"LINK {track} -> {target}")
+            if any(not os.path.samefile(sources[0], other) for other in sources[1:]):
+                raise FileExistsError(f"different sources claim the same destination: {sources}")
         except OSError as error:
-            print(f"ERROR {track} -> {target}: {error}", file=sys.stderr)
+            print(f"ERROR planning {target}: {error}", file=sys.stderr)
+            conflicts.add(target)
+            failed = True
+    for job in jobs:
+        if any(target in conflicts for _, target in job):
+            continue
+        if not link_job(job, dry_run):
             failed = True
     return 1 if failed else 0
 
@@ -105,7 +133,7 @@ def process(root, dry_run=False):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("root", nargs="?", type=Path,
-                        help="torrent directory; defaults to Transmission's event variables")
+                        help="season directory; defaults to Transmission's event variables")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
     root = args.root
@@ -113,9 +141,12 @@ def main():
         directory = os.environ.get("TR_TORRENT_DIR")
         name = os.environ.get("TR_TORRENT_NAME")
         if not directory or not name:
-            parser.error("provide a torrent directory or TR_TORRENT_DIR and TR_TORRENT_NAME")
+            parser.error("provide a season directory or TR_TORRENT_DIR and TR_TORRENT_NAME")
         base = Path(directory).resolve()
-        root = (base / name).resolve()
+        root = base / name
+        if root.is_symlink():
+            parser.error(f"season directory must not be a symlink: {root}")
+        root = root.resolve()
         if root == base or base not in root.parents:
             parser.error("torrent path must be inside TR_TORRENT_DIR")
     if root.is_file():
