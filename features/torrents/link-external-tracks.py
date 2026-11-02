@@ -1,6 +1,7 @@
 """Link external audio and subtitles beside matching videos without changing torrent files."""
 
 import argparse
+from collections import Counter
 import os
 from pathlib import Path
 import sys
@@ -31,6 +32,7 @@ def process(root, dry_run=False):
                      if not (Path(directory) / n).is_symlink()
                      and (Path(directory) / n).is_file())
     videos = [p for p in files if p.suffix.lower() in VIDEO]
+    pending = []
     for track in (p for p in files if p.suffix.lower() in AUDIO | SUBTITLES):
         # Literal string comparison: brackets in release names aren't glob syntax.
         matches = [v for v in videos if track.stem == v.stem
@@ -45,6 +47,43 @@ def process(root, dry_run=False):
             continue
         target = matches[0].parent / track.name
         if target == track:
+            continue
+        pending.append((track, target))
+
+    # Plan before linking so dry runs and real runs choose the same names.
+    counts = Counter(target for _, target in pending)
+    rename = {track for track, target in pending if counts[target] > 1}
+    # VobSub's index and data files must keep the same basename.
+    pairs = {(p.parent, p.stem) for p in rename if p.suffix.lower() in {".idx", ".sub"}}
+    rename.update(p for p, _ in pending
+                  if p.suffix.lower() in {".idx", ".sub"} and (p.parent, p.stem) in pairs)
+
+    def destination(track, target, full_group=False):
+        if track not in rename:
+            return target
+        parts = track.relative_to(root).parent.parts if full_group else (track.parent.name,)
+        group = ".".join(part.strip("[]") or part for part in parts)
+        return target.with_name(f"{track.stem}.{group}{track.suffix}")
+
+    named = [(track, destination(track, target)) for track, target in pending]
+    counts = Counter(target for _, target in named)
+    # Two nested folders can have the same group name; qualify with their path.
+    qualify = {track for track, target in named if counts[target] > 1}
+    qualify_pairs = {(p.parent, p.stem) for p in qualify if p.suffix.lower() in {".idx", ".sub"}}
+    qualify.update(p for p, _ in pending
+                   if p.suffix.lower() in {".idx", ".sub"} and (p.parent, p.stem) in qualify_pairs)
+    named = [(track, destination(track, target, track in qualify)) for track, target in pending]
+    counts = Counter(target for _, target in named)
+    originals = dict(pending)
+    for track, target in named:
+        original = originals[track]
+        if (os.path.lexists(original) and not original.is_symlink()
+                and os.path.samefile(track, original)
+                and not (track in rename and track.suffix.lower() in {".idx", ".sub"})):
+            continue
+        if counts[target] > 1:
+            print(f"SKIP ambiguous destination: {target}")
+            failed = True
             continue
         if os.path.lexists(target):
             if not target.is_symlink() and os.path.samefile(track, target):
