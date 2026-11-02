@@ -51,6 +51,10 @@
       user = "shed";
       settings = {
         download-dir = "/home/shed/Downloads";
+        script-torrent-done-enabled = true;
+        script-torrent-done-filename = pkgs.writeShellScript "transmission-postprocess" ''
+          exec ${pkgs.python3}/bin/python3 ${./link-external-tracks.py}
+        '';
         rpc-bind-address = "0.0.0.0";
         rpc-whitelist = "127.0.0.1,192.168.88.*";
       };
